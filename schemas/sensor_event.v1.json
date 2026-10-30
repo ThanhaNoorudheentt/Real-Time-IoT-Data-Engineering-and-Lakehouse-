@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/schemas/sensor_event.v1.json",
+  "title": "SmartHomeSensorEvent",
+  "description": "Telemetry envelope published by every smart home device. Deduplication key: event_id.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "home_id",
+    "room",
+    "device_id",
+    "sensor_type",
+    "value",
+    "unit",
+    "event_ts",
+    "seq",
+    "fw_version",
+    "produced_at"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "home_id": {
+      "type": "string",
+      "pattern": "^home-[0-9]{3}$"
+    },
+    "room": {
+      "type": "string",
+      "enum": [
+        "living_room",
+        "kitchen",
+        "bedroom",
+        "bathroom",
+        "hallway"
+      ]
+    },
+    "device_id": {
+      "type": "string",
+      "pattern": "^[a-z]{2,4}-[0-9]{4}$"
+    },
+    "sensor_type": {
+      "type": "string",
+      "enum": [
+        "temperature",
+        "humidity",
+        "co2",
+        "power",
+        "motion",
+        "door"
+      ]
+    },
+    "value": {
+      "type": "number"
+    },
+    "unit": {
+      "type": "string",
+      "enum": [
+        "C",
+        "%",
+        "ppm",
+        "W",
+        "bool"
+      ]
+    },
+    "event_ts": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Event time, UTC, set by the device"
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Per-device monotonically increasing counter"
+    },
+    "fw_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "produced_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the device sent the message (UTC). produced_at - event_ts = device-side delay"
+    }
+  },
+  "x-valid-ranges": {
+    "temperature": {
+      "unit": "C",
+      "min": -10,
+      "max": 50
+    },
+    "humidity": {
+      "unit": "%",
+      "min": 0,
+      "max": 100
+    },
+    "co2": {
+      "unit": "ppm",
+      "min": 300,
+      "max": 5000
+    },
+    "power": {
+      "unit": "W",
+      "min": 0,
+      "max": 10000
+    },
+    "motion": {
+      "unit": "bool",
+      "min": 0,
+      "max": 1
+    },
+    "door": {
+      "unit": "bool",
+      "min": 0,
+      "max": 1
+    }
+  }
+}
