@@ -1,4 +1,4 @@
-name: iot-lakehouse
+﻿name: iot-lakehouse
 
 services:
   mosquitto:
@@ -11,7 +11,7 @@ services:
 
   kafka:
     image: apache/kafka:3.8.0
-    ports: ["29092:29092"]   # host access; containers use kafka:9092
+    ports: ["29092:29092"]
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
@@ -43,8 +43,8 @@ services:
     command:
       - |
         K=/opt/kafka/bin/kafka-topics.sh
-        $$K --bootstrap-server kafka:9092 --create --if-not-exists --topic iot.raw    --partitions 6 --replication-factor 1
-        $$K --bootstrap-server kafka:9092 --create --if-not-exists --topic iot.dlq    --partitions 1 --replication-factor 1
+        $$K --bootstrap-server kafka:9092 --create --if-not-exists --topic iot.raw --partitions 6 --replication-factor 1
+        $$K --bootstrap-server kafka:9092 --create --if-not-exists --topic iot.dlq --partitions 1 --replication-factor 1
         $$K --bootstrap-server kafka:9092 --create --if-not-exists --topic iot.alerts --partitions 1 --replication-factor 1
         $$K --bootstrap-server kafka:9092 --list
     restart: "no"
@@ -70,9 +70,24 @@ services:
     restart: unless-stopped
     mem_limit: 256m
 
-  # S3-compatible object storage. Upstream MinIO removed its Docker Hub and Quay images,
-  # so this uses the Chainguard build (see docs/adr/004-object-storage-image.md).
-  # The image runs as uid 65532; "user: 0" lets it write to the fresh named volume in local dev.
+    # PostgreSQL - Iceberg JDBC catalog
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-iceberg}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 512m
+
+  # S3-compatible object storage
   minio:
     image: cgr.dev/chainguard/minio:latest
     user: "0"
@@ -85,8 +100,7 @@ services:
       - minio-data:/data
     mem_limit: 512m
 
-  # Creates the "warehouse" bucket. No shell needed: the client reads its endpoint and
-  # credentials from MC_HOST_local, and Compose retries until MinIO is up.
+  # Creates the warehouse bucket
   minio-init:
     image: cgr.dev/chainguard/minio-client:latest
     depends_on: [minio]
@@ -105,11 +119,54 @@ services:
       - grafana-data:/var/lib/grafana
     mem_limit: 512m
 
-  # --- Week 2 additions (add when you reach bronze): postgres (Iceberg JDBC catalog),
-  # --- spark master/worker, trino. Keep memory limits explicit.
+  # Apache Spark - Bronze streaming processor
+  spark:
+    build:
+      context: ./spark
+      dockerfile: Dockerfile
+    image: iot-spark:3.5.9-iceberg-1.12.0
+    env_file:
+      - .env
+    environment:
+      SPARK_LOCAL_IP: 127.0.0.1
+    volumes:
+      - ./streaming:/opt/spark-apps
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    mem_limit: 3g
+    restart: unless-stopped
+    command: ["sleep", "infinity"]
+
+
+    # Trino - SQL query engine
+  trino:
+    image: trinodb/trino:484
+    ports:
+      - "8081:8080"
+    env_file:
+      - .env
+    volumes:
+      - ./trino/config.properties:/etc/trino/config.properties:ro
+      - ./trino/node.properties:/etc/trino/node.properties:ro
+      - ./trino/catalog:/etc/trino/catalog:ro
+      - trino-data:/data/trino
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    mem_limit: 2g
+    restart: unless-stopped
 
 volumes:
   mosquitto-data:
   kafka-data:
   minio-data:
   grafana-data:
+  postgres-data:
+  trino-data:
