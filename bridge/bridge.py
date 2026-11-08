@@ -18,6 +18,8 @@ from confluent_kafka import Producer
 
 MQTT_HOST = os.getenv("MQTT_HOST", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
+MQTT_USER = os.getenv("MQTT_USER")
+MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
 KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP", "localhost:29092")
 RAW_TOPIC = os.getenv("RAW_TOPIC", "iot.raw")
 DLQ_TOPIC = os.getenv("DLQ_TOPIC", "iot.dlq")
@@ -93,6 +95,8 @@ def main():
     # published while the bridge is down and delivers them when it reconnects.
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="bridge",
                          protocol=mqtt.MQTTv311, clean_session=False)
+    if MQTT_USER:
+        client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
     client.on_connect = on_connect
     client.on_message = on_message
 

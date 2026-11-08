@@ -1,0 +1,5 @@
+user simulator
+topic write sensors/#
+
+user bridge
+topic read sensors/#

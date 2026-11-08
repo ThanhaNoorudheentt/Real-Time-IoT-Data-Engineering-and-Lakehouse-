@@ -4,6 +4,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "simulator"))
+import simulator
+
 SIM = ROOT / "simulator" / "simulator.py"
 SCHEMA = json.loads((ROOT / "schemas" / "sensor_event.v1.json").read_text())
 
@@ -81,3 +84,16 @@ def test_duplicates_share_event_id(tmp_path):
     assert dups
     first_ids = {r["event_id"] for r in recs if "duplicate_publish" not in r["faults"]}
     assert all(r["event_id"] in first_ids for r in dups)
+
+
+def test_local_env_value_reads_credentials_without_shell_execution(tmp_path, monkeypatch):
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "# comment\nMQTT_SIMULATOR_USER='sim user'\nMQTT_SIMULATOR_PASSWORD=abc123\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(simulator, "ENV_FILE", env_file)
+    monkeypatch.delenv("MQTT_SIMULATOR_USER", raising=False)
+    assert simulator.local_env_value("MQTT_SIMULATOR_USER") == "sim user"
+    monkeypatch.setenv("MQTT_SIMULATOR_PASSWORD", "from-environment")
+    assert simulator.local_env_value("MQTT_SIMULATOR_PASSWORD") == "from-environment"

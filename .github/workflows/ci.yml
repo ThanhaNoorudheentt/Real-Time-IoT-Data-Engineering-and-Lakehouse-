@@ -13,3 +13,18 @@ jobs:
         run: |
           cp .env.example .env
           docker compose config -q
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install paho-mqtt
+      - run: cp .env.example .env
+      - name: Start MQTT-to-Kafka path
+        run: docker compose up -d --build bridge
+      - name: Verify published messages reach Kafka
+        run: python scripts/stage1_acceptance.py --homes 1 --duration 30 --settle 60
+      - name: Stop integration services
+        if: always()
+        run: docker compose down --remove-orphans

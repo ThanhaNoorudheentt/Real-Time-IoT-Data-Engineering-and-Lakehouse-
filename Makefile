@@ -1,4 +1,10 @@
-.PHONY: up down clean ps logs topics sim sim-fast consume test accept stage1 stage4-up stage4-down stage4-reconcile
+.PHONY: init-env update-env up down clean ps logs topics sim sim-fast consume test accept stage1 ready-stage4 stage4-up stage4-down stage4-reconcile metrics benchmark iceberg-compact iceberg-expire
+
+init-env:             ## create a private .env with unique local passwords
+	python3 scripts/init_env.py
+
+update-env:           ## safely add missing generated settings to an existing .env
+	python3 scripts/init_env.py --update
 
 up:            ## start the stack
 	docker compose up -d --build
@@ -44,3 +50,19 @@ stage4-down:        ## stop the Stage 4 refresh and alert jobs
 
 stage4-reconcile:   ## reconcile Gold tables and alerts against Silver
 	docker compose exec spark spark-submit /opt/spark-apps/reconcile_gold.py
+
+ready-stage4:         ## validate the project prerequisites for Stage 4
+	python3 scripts/stage4_readiness.py
+
+metrics:             ## collect Kafka lag and Silver health metrics
+	python3 scripts/collect_metrics.py
+
+benchmark:           ## measure repeatable simulator-to-file throughput at 1/3/5 homes
+	python3 scripts/benchmark.py
+
+iceberg-compact:     ## compact Iceberg data files without expiring snapshots
+	docker compose exec spark spark-submit /opt/spark-apps/maintenance.py --action rewrite
+
+iceberg-expire:      ## explicitly expire old snapshots (requires SNAPSHOT_EXPIRE_BEFORE)
+	test -n "$(SNAPSHOT_EXPIRE_BEFORE)" || (echo "Set SNAPSHOT_EXPIRE_BEFORE to an ISO timestamp in the past"; exit 2)
+	docker compose exec spark spark-submit /opt/spark-apps/maintenance.py --action expire --expire-before "$(SNAPSHOT_EXPIRE_BEFORE)" --confirm-expire
