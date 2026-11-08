@@ -1,4 +1,4 @@
-﻿name: iot-lakehouse
+name: iot-lakehouse
 
 services:
   mosquitto:
@@ -115,8 +115,12 @@ services:
     ports: ["3000:3000"]
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: trino-datasource
     volumes:
       - grafana-data:/var/lib/grafana
+      - ./monitoring/provisioning/datasources/trino.yml:/etc/grafana/provisioning/datasources/trino.yml:ro
+      - ./monitoring/provisioning/dashboards/iot.yml:/etc/grafana/provisioning/dashboards/iot.yml:ro
+      - ./monitoring/dashboards:/var/lib/grafana/dashboards:ro
     mem_limit: 512m
 
   # Apache Spark - Bronze streaming processor
@@ -142,6 +146,55 @@ services:
     restart: unless-stopped
     command: ["sleep", "infinity"]
 
+  gold:
+    profiles: ["stage4"]
+    build:
+      context: ./spark
+      dockerfile: Dockerfile
+    image: iot-spark:3.5.9-iceberg-1.12.0
+    env_file:
+      - .env
+    environment:
+      SPARK_LOCAL_IP: 127.0.0.1
+    volumes:
+      - ./streaming:/opt/spark-apps
+    depends_on:
+      spark:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    mem_limit: 1536m
+    restart: unless-stopped
+    command:
+      ["/opt/spark/bin/spark-submit", "/opt/spark-apps/gold.py", "--refresh-interval-seconds", "60"]
+
+  alerts:
+    profiles: ["stage4"]
+    build:
+      context: ./spark
+      dockerfile: Dockerfile
+    image: iot-spark:3.5.9-iceberg-1.12.0
+    env_file:
+      - .env
+    environment:
+      SPARK_LOCAL_IP: 127.0.0.1
+    volumes:
+      - ./streaming:/opt/spark-apps
+    depends_on:
+      spark:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    mem_limit: 1536m
+    restart: unless-stopped
+    command:
+      ["/opt/spark/bin/spark-submit", "/opt/spark-apps/alerts.py", "--poll-interval-seconds", "10"]
 
     # Trino - SQL query engine
   trino:

@@ -1,0 +1,12 @@
+apiVersion: 1
+
+datasources:
+  - name: Trino
+    uid: trino
+    type: trino-datasource
+    access: proxy
+    url: http://trino:8080
+    isDefault: true
+    jsonData:
+      user: grafana
+    editable: false

@@ -1,4 +1,4 @@
-﻿FROM apache/spark:3.5.9
+FROM apache/spark:3.5.9
 
 USER root
 
@@ -39,5 +39,7 @@ ADD https://repo.maven.apache.org/maven2/org/apache/commons/commons-pool2/2.11.1
 
 # Make all downloaded JARs readable by the Spark user
 RUN chmod 644 /opt/spark/jars/*.jar
+
+ENV PATH="/opt/spark/bin:${PATH}"
 
 USER spark

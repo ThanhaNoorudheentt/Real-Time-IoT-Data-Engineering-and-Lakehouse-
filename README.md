@@ -9,11 +9,11 @@ The project is built in five stages, one after another. See [docs/stages.md](doc
 
 | Stage | Goal | State |
 |---|---|---|
-| 1 | Foundation and ingestion ([handover](docs/stage1.md)) | done when `make stage1` passes |
-| 2 | Bronze lakehouse (Postgres catalog, Spark, Iceberg, Trino) | next |
-| 3 | Silver: validation, quarantine, dedup, watermarks | |
-| 4 | Gold, serving and alerts | |
-| 5 | Reliability, DataOps and evaluation | |
+| 1 | Foundation and ingestion ([handover](docs/stage1.md)) | complete |
+| 2 | Bronze lakehouse (Postgres catalog, Spark, Iceberg, Trino) | complete |
+| 3 | Silver: validation, quarantine, dedup, watermarks | complete |
+| 4 | Gold, serving and alerts ([run guide](docs/stage4.md)) | complete |
+| 5 | Reliability, DataOps and evaluation | not started |
 
 ## Quick start (Week 1)
 
