@@ -1,8 +1,9 @@
 import json
-import sys
 import logging
-from pathlib import Path
+import os
+import sys
 from collections import Counter
+from pathlib import Path
 
 import trino
 
@@ -13,13 +14,9 @@ import trino
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-GROUND_TRUTH_FILE = (
-    PROJECT_ROOT / "data" / "ground_truth_stage2_test.jsonl"
-)
-
-TRINO_HOST = "localhost"
-TRINO_PORT = 8081
-TRINO_USER = "reconciliation"
+TRINO_HOST = os.getenv("TRINO_HOST", "localhost")
+TRINO_PORT = int(os.getenv("TRINO_PORT", "8081"))
+TRINO_USER = os.getenv("TRINO_USER", "reconciliation")
 
 TRINO_CATALOG = "iceberg"
 TRINO_SCHEMA = "bronze"
@@ -43,20 +40,35 @@ logger = logging.getLogger("bronze_reconciliation")
 
 
 # ---------------------------------------------------------
-# Load Ground Truth
+# Ground Truth Resolution and Loading
 # ---------------------------------------------------------
 
-def load_ground_truth():
+def resolve_ground_truth_file():
+    """Resolve ground truth file from CLI args, env var, or default locations."""
+    if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
+        return Path(sys.argv[1])
+    env_path = os.getenv("GROUND_TRUTH_FILE")
+    if env_path:
+        return Path(env_path)
+    default_test = PROJECT_ROOT / "data" / "ground_truth_stage2_test.jsonl"
+    if default_test.exists():
+        return default_test
+    return PROJECT_ROOT / "data" / "ground_truth.jsonl"
 
-    if not GROUND_TRUTH_FILE.exists():
+
+def load_ground_truth(file_path=None):
+    gt_file = Path(file_path) if file_path else resolve_ground_truth_file()
+
+    if not gt_file.exists():
         raise FileNotFoundError(
-            f"Ground-truth file not found: {GROUND_TRUTH_FILE}"
+            f"Ground-truth file not found: {gt_file}"
         )
 
-    event_ids = []
+    expected_bronze_ids = []
+    dlq_ids = []
 
     with open(
-        GROUND_TRUTH_FILE,
+        gt_file,
         "r",
         encoding="utf-8"
     ) as file:
@@ -84,14 +96,24 @@ def load_ground_truth():
                     f"Missing event_id at line {line_number}"
                 )
 
-            event_ids.append(event_id)
+            # Messages with expected == 'dlq' (e.g. truncated JSON) are sent to
+            # Kafka topic 'iot.dlq' by the MQTT->Kafka bridge, not 'iot.raw'.
+            # Bronze ingestion consumes 'iot.raw', so DLQ messages must not be
+            # counted as missing from Bronze.
+            if record.get("expected") == "dlq":
+                dlq_ids.append(event_id)
+                continue
+
+            expected_bronze_ids.append(event_id)
 
     logger.info(
-        "Loaded %s ground-truth publish records",
-        len(event_ids)
+        "Loaded %d expected Bronze publish records from %s (%d routed to DLQ excluded)",
+        len(expected_bronze_ids),
+        gt_file.name,
+        len(dlq_ids)
     )
 
-    return event_ids
+    return expected_bronze_ids, dlq_ids
 
 
 # ---------------------------------------------------------
@@ -152,7 +174,7 @@ def fetch_bronze_event_ids():
 # Reconciliation
 # ---------------------------------------------------------
 
-def reconcile(ground_truth_ids, bronze_ids):
+def reconcile(ground_truth_ids, bronze_ids, dlq_ids=None):
 
     ground_truth_counter = Counter(ground_truth_ids)
 
@@ -191,6 +213,8 @@ def reconcile(ground_truth_ids, bronze_ids):
         "ground_truth_unique_count": len(ground_truth_unique),
 
         "bronze_unique_count": len(bronze_unique),
+
+        "dlq_excluded_count": len(dlq_ids) if dlq_ids else 0,
 
         "missing_count": len(missing_ids),
 
@@ -237,6 +261,12 @@ def display_report(report):
         f"Ground-truth records       : "
         f"{report['ground_truth_count']}"
     )
+
+    if report.get("dlq_excluded_count"):
+        print(
+            f"DLQ records (excluded)     : "
+            f"{report['dlq_excluded_count']}"
+        )
 
     print(
         f"Bronze records             : "
@@ -314,13 +344,14 @@ def main():
 
     try:
 
-        ground_truth_ids = load_ground_truth()
+        ground_truth_ids, dlq_ids = load_ground_truth()
 
         bronze_ids = fetch_bronze_event_ids()
 
         report = reconcile(
             ground_truth_ids,
-            bronze_ids
+            bronze_ids,
+            dlq_ids=dlq_ids
         )
 
         display_report(report)

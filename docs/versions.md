@@ -47,6 +47,7 @@ The runtime artifact must match the Spark and Scala versions.
 - Java 11 compatibility with Iceberg 1.10.1 extension: Validated
 - Iceberg JDBC catalog connection to PostgreSQL: Validated
 - Spark and Trino namespace visibility: Validated
-- Bronze streaming ingestion: Pending
-- Kafka-to-Iceberg reconciliation: Pending
-- Trino Bronze table queries: Pending
+- Bronze streaming ingestion: Validated
+- Kafka-to-Iceberg reconciliation: Validated
+- Trino Bronze table queries: Validated
+- Spark checkpoint recovery after restart: Validated
