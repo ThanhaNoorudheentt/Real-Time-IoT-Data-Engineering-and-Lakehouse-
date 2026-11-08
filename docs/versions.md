@@ -1,4 +1,4 @@
-﻿# Stage 2 - Software Versions
+# Stage 2 - Software Versions
 
 This document records the pinned software versions used by the Bronze Lakehouse.
 

@@ -156,3 +156,4 @@ python3 tests/test_restart.py
 
 - **Duplicates:** Duplicates produced by MQTT QoS 1 or simulator fault injection are preserved in Bronze. Stage 3 Silver deduplicates them by `event_id`.
 - **Schema Validation:** Bronze does not inspect or validate schema compliance; invalid payloads are passed to Stage 3 Silver for quarantine.
+
