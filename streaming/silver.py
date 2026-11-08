@@ -13,9 +13,10 @@ Per micro-batch order of operations:
   4. write silver + metrics
 
 Run (inside the spark container, see docs/stage3.md):
-  spark-submit /opt/spark-apps/silver.py            # wipe silver, rebuild from bronze, stop
+  spark-submit /opt/spark-apps/silver.py --rebuild  # wipe silver, rebuild from bronze, stop
   spark-submit /opt/spark-apps/silver.py --follow   # live: keep running, 10 s trigger
 """
+import argparse
 import os
 import sys
 from datetime import datetime, timedelta, timezone
@@ -332,12 +333,29 @@ def replay(spark):
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Stage 3 - Silver job: process bronze events into silver tables."
+    )
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        "--rebuild", "--replay",
+        dest="rebuild",
+        action="store_true",
+        help="Explicit flag to wipe silver tables and rebuild from Bronze in arrival order."
+    )
+    group.add_argument(
+        "--follow",
+        action="store_true",
+        help="Live mode: keep running and process new bronze data as it arrives (10 s trigger)."
+    )
+    args = parser.parse_args()
+
     spark = build_spark("silver")
     spark.sparkContext.setLogLevel("WARN")
     create_tables(spark)
 
-    if "--follow" not in sys.argv:
-        # Default (and --replay): rebuild silver from bronze in arrival order.
+    if args.rebuild:
+        # Explicit rebuild requested: wipe silver outputs and rebuild from bronze in arrival order.
         replay(spark)
         return
 

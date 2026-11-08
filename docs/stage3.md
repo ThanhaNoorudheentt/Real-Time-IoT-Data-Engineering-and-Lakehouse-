@@ -74,8 +74,10 @@ setup (no expiry) that cannot happen.
 - Quarantine and late tables use `MERGE ... WHEN NOT MATCHED` on the Kafka coordinates
   (topic, partition, offset), so a retried micro-batch does not insert twice.
 - Silver dedups by `event_id` before append, so a retry finds its own rows and skips them.
-- By default `silver.py` wipes the silver tables and rebuilds from bronze in 1-minute arrival slices
-  (`--follow` is the live streaming mode). Run it twice and compare `reconcile_silver.py` output; counts should be identical.
+- To prevent accidental table wipes, `silver.py` requires an explicit flag: pass `--rebuild` (or `--replay`)
+  to wipe silver tables and rebuild from bronze in 1-minute arrival slices, or `--follow` for live streaming mode.
+  Running `silver.py` without flags exits safely with usage instructions. Run rebuild twice and compare `reconcile_silver.py` output;
+  counts should be identical.
 
 ## How to run
 
@@ -90,14 +92,14 @@ python simulator/simulator.py --sink mqtt --homes 5 --realtime --duration 0   # 
 # bronze job (Stage 2) must have ingested the run
 docker compose exec spark spark-submit /opt/spark-apps/bronze_ingest.py
 
-# Stage 3
-docker compose exec spark spark-submit /opt/spark-apps/silver.py
+# Stage 3: rebuild silver from bronze (requires explicit --rebuild flag)
+docker compose exec spark spark-submit /opt/spark-apps/silver.py --rebuild
 docker compose cp data/ground_truth.jsonl spark:/tmp/ground_truth.jsonl
 docker compose exec spark spark-submit /opt/spark-apps/reconcile_silver.py /tmp/ground_truth.jsonl
 
-# replay test: run the job again (it wipes silver and rebuilds from bronze), reconcile again;
+# replay test: run the job again with --rebuild (it wipes silver and rebuilds from bronze), reconcile again;
 # the counts must be identical
-docker compose exec spark spark-submit /opt/spark-apps/silver.py
+docker compose exec spark spark-submit /opt/spark-apps/silver.py --rebuild
 docker compose exec spark spark-submit /opt/spark-apps/reconcile_silver.py /tmp/ground_truth.jsonl
 
 # optional live mode: keeps running and processes new bronze data as it arrives
