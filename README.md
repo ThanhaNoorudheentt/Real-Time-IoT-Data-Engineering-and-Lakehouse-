@@ -13,12 +13,12 @@ The project is built in five stages, one after another. See [docs/stages.md](doc
 | 2 | Bronze lakehouse (Postgres catalog, Spark, Iceberg, Trino) | complete |
 | 3 | Silver: validation, quarantine, dedup, watermarks | complete |
 | 4 | Gold, serving and alerts ([run guide](docs/stage4.md)) | complete |
-| 5 | Reliability, DataOps and evaluation | not started |
+| 5 | Reliability, DataOps and evaluation | in progress; see [runbook](docs/stage5.md) |
 
 ## Quick start (Week 1)
 
 ```bash
-cp .env.example .env          # then edit the passwords
+make init-env                 # generates a private .env with unique local passwords
 make up                       # mosquitto, kafka, kafka-ui, minio, grafana, bridge
 make ps                       # everything should be Up / Exited(0) for the *-init jobs
 
@@ -27,6 +27,10 @@ make sim                      # live simulator -> MQTT (Ctrl-C to stop)
 make consume                  # see events arriving on Kafka topic iot.raw
 ```
 
+If you already have an older `.env`, run `make update-env` to append newly
+required settings without changing existing values, then rotate any example
+passwords before starting the stack.
+
 UIs: Kafka UI http://localhost:8080 · MinIO console http://localhost:9001 · Grafana http://localhost:3000
 
 **Stage 1 done-criteria:** `make stage1` runs the unit tests, then the acceptance test, which publishes a
@@ -34,6 +38,8 @@ fixed simulated run and checks that every message is accounted for in `iot.raw` 
 You can also watch events arrive in Kafka UI.
 
 No Docker handy? `make sim-fast` writes a reproducible run to `data/` with no broker.
+
+Stage 4 readiness: `make ready-stage4` validates the project prerequisites. See [docs/stage4.md](docs/stage4.md) for running the live jobs and dashboard.
 
 ## Layout
 
@@ -76,8 +82,12 @@ contents against it to compute duplicate/late handling rates and completeness.
 - One branch per stage (`stage-2-bronze`, ...). Merge to `main` only when that stage's acceptance test passes.
 - Agree table and topic contracts with the next stage's owner before building.
 - Each member writes one ADR in `docs/adr/` for the main decision in their stage.
-- Never commit `.env`; copy `.env.example` and edit it locally.
+- Never commit `.env`; generate it locally with `make init-env`.
 
-## Known Stage-1 shortcuts (fixed in Stage 5)
+## Stage 5
+
+Stage 5 focuses on failure recovery, Iceberg maintenance, operational metrics,
+security hardening, integration checks, benchmarks, and the final evaluation.
+See [docs/stage5.md](docs/stage5.md) for the runbook and acceptance evidence.
 
 Anonymous MQTT, plaintext Kafka, default MinIO/Grafana credentials via `.env` fallbacks.

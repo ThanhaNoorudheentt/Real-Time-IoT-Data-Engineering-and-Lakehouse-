@@ -19,11 +19,35 @@ import collections
 import heapq
 import json
 import math
+import os
 import random
 import sys
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
+
+
+def local_env_value(key):
+    """Read a simple KEY=value from .env when the CLI is run outside Compose."""
+    if key in os.environ:
+        return os.environ[key]
+    if not ENV_FILE.exists():
+        return None
+    for line in ENV_FILE.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in stripped:
+            continue
+        name, _, value = stripped.partition("=")
+        if name.strip() == key:
+            value = value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+                value = value[1:-1]
+            return value
+    return None
+
 
 # room -> list of (device prefix, sensor_type, unit)
 HOME_TEMPLATE = {
@@ -160,8 +184,8 @@ def main(argv=None):
     p.add_argument("--out-file", default="data/simulated_messages.tsv")
     p.add_argument("--mqtt-host", default="localhost")
     p.add_argument("--mqtt-port", type=int, default=1883)
-    p.add_argument("--mqtt-user", default=None)
-    p.add_argument("--mqtt-password", default=None)
+    p.add_argument("--mqtt-user", default=local_env_value("MQTT_SIMULATOR_USER"))
+    p.add_argument("--mqtt-password", default=local_env_value("MQTT_SIMULATOR_PASSWORD"))
     p.add_argument("--truth-file", default="data/ground_truth.jsonl")
     args = p.parse_args(argv)
     if args.realtime and args.no_sleep:

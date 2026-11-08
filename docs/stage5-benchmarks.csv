@@ -1,0 +1,4 @@
+homes,simulated_seconds,interval_seconds,seed,published_events,wall_seconds,events_per_second,scope
+1,60,5.0,42,180,0.043770984000730095,4112.31,"simulator-to-local-file; excludes MQTT, Kafka, Spark, and Iceberg"
+3,60,5.0,42,540,0.04973661199983326,10857.19,"simulator-to-local-file; excludes MQTT, Kafka, Spark, and Iceberg"
+5,60,5.0,42,900,0.052704265999636846,17076.42,"simulator-to-local-file; excludes MQTT, Kafka, Spark, and Iceberg"

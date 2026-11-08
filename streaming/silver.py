@@ -19,6 +19,7 @@ Run (inside the spark container, see docs/stage3.md):
 import argparse
 import os
 import sys
+import time
 from datetime import datetime, timedelta, timezone
 
 from pyspark.sql import SparkSession, Window, functions as F
@@ -74,8 +75,8 @@ SENTINEL = -999.0
 # ----------------------------------------------------------------------------
 def build_spark(app_name="silver"):
     c = f"spark.sql.catalog.{CATALOG}"
-    minio_user = os.environ["MINIO_ROOT_USER"]
-    minio_pass = os.environ["MINIO_ROOT_PASSWORD"]
+    minio_user = os.environ["MINIO_WAREHOUSE_USER"]
+    minio_pass = os.environ["MINIO_WAREHOUSE_PASSWORD"]
     return (
         SparkSession.builder.appName(app_name)
         .config("spark.sql.extensions",
@@ -213,6 +214,7 @@ def event_columns(df, *extra):
 # One micro-batch
 # ----------------------------------------------------------------------------
 def process_batch(batch_df, batch_id):
+    batch_started = time.monotonic()
     spark = batch_df.sparkSession
     if batch_df.isEmpty():
         return
@@ -302,9 +304,13 @@ def process_batch(batch_df, batch_id):
     spark.createDataFrame(rows, "batch_id BIGINT, run_ts TIMESTAMP, rule STRING, "
                                 "action STRING, row_count BIGINT").writeTo(DQ).append()
 
+    duration_s = time.monotonic() - batch_started
+    input_rate = n_in / duration_s if duration_s > 0 else 0.0
+    pass_rate = n_silver / n_in if n_in else 0.0
     print(f"[silver] batch {batch_id}: in={n_in} silver={n_silver} late={n_late} "
           f"dup={dup_batch + dup_table} quarantine={sum(reason_counts.values())} "
-          f"pass_rate={n_silver / n_in:.3f}")
+          f"pass_rate={pass_rate:.3f} duration_s={duration_s:.3f} "
+          f"input_rows_per_s={input_rate:.2f}")
     if reason_counts:
         print(f"[silver] batch {batch_id} quarantine reasons: {reason_counts}")
     if stamped is not None:
