@@ -1,0 +1,181 @@
+{
+  "id": null,
+  "uid": "iot-lakehouse",
+  "title": "Smart Home IoT Lakehouse",
+  "tags": ["iot", "lakehouse"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "CO2 by home and room (ppm)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "trino-datasource",
+        "uid": "trino"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSQL": "SELECT window_start AS time, home_id || ' / ' || room AS metric, avg_value AS value FROM iceberg.gold.home_metrics_1m WHERE sensor_type = 'co2' AND window_start >= current_timestamp - INTERVAL '6' HOUR ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ppm"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Average power by home and room (W)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "trino-datasource",
+        "uid": "trino"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSQL": "SELECT window_start AS time, home_id || ' / ' || room AS metric, avg_value AS value FROM iceberg.gold.home_metrics_1m WHERE sensor_type = 'power' AND window_start >= current_timestamp - INTERVAL '6' HOUR ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "watt"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Device health",
+      "type": "table",
+      "datasource": {
+        "type": "trino-datasource",
+        "uid": "trino"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSQL": "SELECT home_id, room, device_id, sensor_type, last_seen, checked_at, is_silent FROM iceberg.gold.device_health ORDER BY is_silent DESC, last_seen ASC"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "sortBy": [
+          {
+            "displayName": "is_silent",
+            "desc": true
+          }
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "title": "Recent alerts",
+      "type": "table",
+      "datasource": {
+        "type": "trino-datasource",
+        "uid": "trino"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSQL": "SELECT event_time, detected_at, home_id, room, device_id, observed_value, threshold, unit FROM iceberg.gold.alerts ORDER BY detected_at DESC LIMIT 100"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      }
+    },
+    {
+      "id": 5,
+      "title": "Silver pass rate by batch",
+      "type": "timeseries",
+      "datasource": {
+        "type": "trino-datasource",
+        "uid": "trino"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSQL": "SELECT run_ts AS time, CAST(batch_id AS VARCHAR) AS metric, CAST(MAX(CASE WHEN rule = 'silver_inserted' THEN row_count END) AS DOUBLE) / NULLIF(MAX(CASE WHEN rule = 'total_in' THEN row_count END), 0) AS value FROM iceberg.silver.dq_metrics GROUP BY batch_id, run_ts ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "hidden"
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      }
+    }
+  ]
+}

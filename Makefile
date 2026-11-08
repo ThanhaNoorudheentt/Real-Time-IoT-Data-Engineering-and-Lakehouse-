@@ -1,4 +1,4 @@
-.PHONY: up down clean ps logs topics sim sim-fast consume test accept stage1
+.PHONY: up down clean ps logs topics sim sim-fast consume test accept stage1 stage4-up stage4-down stage4-reconcile
 
 up:            ## start the stack
 	docker compose up -d --build
@@ -35,3 +35,12 @@ accept:        ## Stage 1 acceptance: every published message accounted for in K
 	python3 scripts/stage1_acceptance.py
 
 stage1: test accept   ## everything Stage 1 requires
+
+stage4-up:          ## refresh Gold tables and publish alerts continuously
+	docker compose --profile stage4 up -d --build gold alerts
+
+stage4-down:        ## stop the Stage 4 refresh and alert jobs
+	docker compose --profile stage4 stop gold alerts
+
+stage4-reconcile:   ## reconcile Gold tables and alerts against Silver
+	docker compose exec spark spark-submit /opt/spark-apps/reconcile_gold.py
